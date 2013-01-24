@@ -130,10 +130,13 @@ protected:
           const Eigen::Isometry3d& last_motion = 
             visual_odometer_->getMotionEstimate();
           Eigen::Vector3d last_translation = last_motion.translation();
+          Eigen::AngleAxisd aa(last_motion.rotation());
           odom_msg.twist.twist.linear.x = last_translation.x() / dt;
           odom_msg.twist.twist.linear.y = last_translation.y() / dt;
           odom_msg.twist.twist.linear.z = last_translation.z() / dt;
-          // TODO insert angular twist calculation
+          odom_msg.twist.twist.angular.x = aa.axis().x() * aa.angle() / dt;
+          odom_msg.twist.twist.angular.y = aa.axis().y() * aa.angle() / dt;
+          odom_msg.twist.twist.angular.z = aa.axis().z() * aa.angle() / dt;
         }
       }
 
