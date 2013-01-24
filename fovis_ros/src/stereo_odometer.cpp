@@ -51,19 +51,41 @@ protected:
     // to fill remaining parameters
     image_geometry::StereoCameraModel model;
     model.fromCameraInfo(*l_info_msg, *r_info_msg);
-    // TODO initialize stereo_depth_ somewhat like this:
-    /*
-    visual_odometer_params_.base = model.baseline();
-    visual_odometer_params_.calib.f = model.left().fx();
-    visual_odometer_params_.calib.cu = model.left().cx();
-    visual_odometer_params_.calib.cv = model.left().cy();
-    visual_odometer_.reset(new VisualOdometryStereo(visual_odometer_params_));
-    if (l_info_msg->header.frame_id != "") setSensorFrameId(l_info_msg->header.frame_id);
-    ROS_INFO_STREAM("Initialized fovis stereo odometry "
-                    "with the following parameters:" << std::endl << 
-                    visual_odometer_params_ << 
-                    "  motion_threshold = " << motion_threshold_);
-                    */
+    
+    // initialize left camera parameters
+    fovis::CameraIntrinsicsParameters left_parameters;
+    left_parameters.cx = model.left().cx();
+    left_parameters.cy = model.left().cy();
+    left_parameters.fx = model.left().fx();
+    left_parameters.fy = model.left().fy();
+    left_parameters.height = l_info_msg->height;
+    left_parameters.width = l_info_msg->width;
+    // initialize right camera parameters
+    fovis::CameraIntrinsicsParameters right_parameters;
+    right_parameters.cx = model.right().cx();
+    right_parameters.cy = model.right().cy();
+    right_parameters.fx = model.right().fx();
+    right_parameters.fy = model.right().fy();
+    right_parameters.height = r_info_msg->height;
+    right_parameters.width = r_info_msg->width;
+
+    fovis::StereoCalibrationParameters stereo_parameters;
+    stereo_parameters.left_parameters = left_parameters;
+    stereo_parameters.right_parameters = right_parameters;
+    stereo_parameters.right_to_left_rotation[0] = 1.0;
+    stereo_parameters.right_to_left_rotation[1] = 0.0;
+    stereo_parameters.right_to_left_rotation[2] = 0.0;
+    stereo_parameters.right_to_left_rotation[3] = 0.0;
+    stereo_parameters.right_to_left_translation[0] = -model.baseline();
+    stereo_parameters.right_to_left_translation[1] = 0.0;
+    stereo_parameters.right_to_left_translation[2] = 0.0;
+
+    fovis::StereoCalibration* stereo_calibration = new fovis::StereoCalibration(stereo_parameters);
+    fovis::Rectification* rectification = new fovis::Rectification(left_parameters);
+
+    stereo_depth_.reset(new fovis::StereoDepth(stereo_calibration, visual_odometer_options_));
+    visual_odometer_.reset(new fovis::VisualOdometry(rectification, visual_odometer_options_));
+    ROS_INFO_STREAM("Initialized fovis stereo odometry ");
   }
  
   void imageCallback(
@@ -125,7 +147,7 @@ protected:
       if (!last_time_.isZero())
       {
         float dt = (l_image_msg->header.stamp - last_time_).toSec();
-        if (dt < 0.0)
+        if (dt > 0.0)
         {
           const Eigen::Isometry3d& last_motion = 
             visual_odometer_->getMotionEstimate();
