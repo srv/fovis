@@ -2,41 +2,16 @@
 #include <sensor_msgs/image_encodings.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <cv_bridge/cv_bridge.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <fovis/visual_odometry.hpp>
 #include <fovis/stereo_depth.hpp>
 
 #include "stereo_processor.h"
 
-// to remove after debugging
-#include <opencv2/highgui/highgui.hpp>
-
 namespace fovis_ros
 {
-
-// some arbitrary values (0.1m linear cov. 10deg. angular cov.)
-static const boost::array<double, 36> STANDARD_POSE_COVARIANCE =
-{ { 0.1, 0, 0, 0, 0, 0,
-    0, 0.1, 0, 0, 0, 0,
-    0, 0, 0.1, 0, 0, 0,
-    0, 0, 0, 0.17, 0, 0,
-    0, 0, 0, 0, 0.17, 0,
-    0, 0, 0, 0, 0, 0.17 } };
-static const boost::array<double, 36> STANDARD_TWIST_COVARIANCE =
-{ { 0.05, 0, 0, 0, 0, 0,
-    0, 0.05, 0, 0, 0, 0,
-    0, 0, 0.05, 0, 0, 0,
-    0, 0, 0, 0.09, 0, 0,
-    0, 0, 0, 0, 0.09, 0,
-    0, 0, 0, 0, 0, 0.09 } };
-static const boost::array<double, 36> BAD_COVARIANCE =
-{ { 9999, 0, 0, 0, 0, 0,
-    0, 9999, 0, 0, 0, 0,
-    0, 0, 9999, 0, 0, 0,
-    0, 0, 0, 9999, 0, 0,
-    0, 0, 0, 0, 9999, 0,
-    0, 0, 0, 0, 0, 9999 } };
-
 
 class StereoOdometer : public StereoProcessor
 {
@@ -47,6 +22,12 @@ private:
   fovis::VisualOdometryOptions visual_odometer_options_;
   boost::shared_ptr<fovis::StereoDepth> stereo_depth_;
 
+  ros::Time last_time_;
+
+  // publisher
+  ros::Publisher odom_pub_;
+  ros::Publisher pose_pub_;
+
 public:
 
   StereoOdometer(const std::string& transport) : 
@@ -56,6 +37,8 @@ public:
     // TODO load parameters from node handle to visual_odometer_options_
     ros::NodeHandle local_nh("~");
 
+    odom_pub_ = local_nh.advertise<nav_msgs::Odometry>("odometry", 1);
+    pose_pub_ = local_nh.advertise<geometry_msgs::PoseStamped>("pose", 1);
   }
 
 protected:
@@ -89,14 +72,12 @@ protected:
       const sensor_msgs::CameraInfoConstPtr& l_info_msg,
       const sensor_msgs::CameraInfoConstPtr& r_info_msg)
   {
- 
-    /*
     bool first_run = false;
     // create odometer if not exists
     if (!visual_odometer_)
     {
-      first_run = true;
       initOdometer(l_info_msg, r_info_msg);
+      first_run = true;
     }
 
     // convert images if necessary
@@ -111,89 +92,72 @@ protected:
     r_step = r_cv_ptr->image.step[0];
 
     ROS_ASSERT(l_step == r_step);
+    ROS_ASSERT(l_step == static_cast<int>(l_image_msg->width));
     ROS_ASSERT(l_image_msg->width == r_image_msg->width);
     ROS_ASSERT(l_image_msg->height == r_image_msg->height);
 
-    int32_t dims[] = {l_image_msg->width, l_image_msg->height, l_step};
-    // on first run or when odometer got lost, only feed the odometer with 
-    // images without retrieving data
-    if (first_run || got_lost_)
+    // pass images to odometer
+    stereo_depth_->setRightImage(r_image_data);
+    visual_odometer_->processFrame(l_image_data, stereo_depth_.get());
+
+    fovis::MotionEstimateStatusCode status = 
+      visual_odometer_->getMotionEstimateStatus();
+
+    if (status == fovis::SUCCESS)
     {
-      visual_odometer_->process(l_image_data, r_image_data, dims);
-      got_lost_ = false;
-      // on first run publish zero once
-      if (first_run)
+      // get pose and put it into messages
+      const Eigen::Isometry3d& pose = visual_odometer_->getPose();
+      Eigen::Vector3d translation = pose.translation();
+      Eigen::Quaterniond rotation(pose.rotation());
+
+      nav_msgs::Odometry odom_msg;
+      odom_msg.header.stamp = l_image_msg->header.stamp;
+      odom_msg.header.frame_id = "/odom";
+      odom_msg.child_frame_id = l_image_msg->header.frame_id;
+      odom_msg.pose.pose.position.x = translation.x();
+      odom_msg.pose.pose.position.y = translation.y();
+      odom_msg.pose.pose.position.z = translation.z();
+      odom_msg.pose.pose.orientation.x = rotation.x();
+      odom_msg.pose.pose.orientation.y = rotation.y();
+      odom_msg.pose.pose.orientation.z = rotation.z();
+      odom_msg.pose.pose.orientation.w = rotation.w();
+
+      if (!last_time_.isZero())
       {
-        tf::Transform delta_transform;
-        delta_transform.setIdentity();
-        integrateAndPublish(delta_transform, l_image_msg->header.stamp);
+        float dt = (l_image_msg->header.stamp - last_time_).toSec();
+        if (dt < 0.0)
+        {
+          const Eigen::Isometry3d& last_motion = 
+            visual_odometer_->getMotionEstimate();
+          Eigen::Vector3d last_translation = last_motion.translation();
+          odom_msg.twist.twist.linear.x = last_translation.x() / dt;
+          odom_msg.twist.twist.linear.y = last_translation.y() / dt;
+          odom_msg.twist.twist.linear.z = last_translation.z() / dt;
+          // TODO insert angular twist calculation
+        }
       }
+
+      const Eigen::MatrixXd& motion_cov = 
+        visual_odometer_->getMotionEstimateCov();
+      for (int i=0;i<6;i++)
+        for (int j=0;j<6;j++)
+          odom_msg.twist.covariance[j*6+i] = motion_cov(i,j);
+      // TODO integrate covariance for pose covariance
+      
+      odom_pub_.publish(odom_msg);
+      geometry_msgs::PoseStamped pose_msg;
+      pose_msg.pose = odom_msg.pose.pose;
+      pose_msg.header = odom_msg.header;
+      pose_msg.header.frame_id = odom_msg.child_frame_id;
+      pose_pub_.publish(pose_msg);
+      
+      last_time_ = l_image_msg->header.stamp;
     }
     else
     {
-      bool success = visual_odometer_->process(
-          l_image_data, r_image_data, dims, last_motion_small_);
-      if (success)
-      {
-        Matrix motion = Matrix::inv(visual_odometer_->getMotion());
-        ROS_DEBUG("Found %i matches with %i inliers.", 
-                  visual_odometer_->getNumberOfMatches(),
-                  visual_odometer_->getNumberOfInliers());
-        ROS_DEBUG_STREAM("fovis returned the following motion:\n" << motion);
-        Matrix camera_motion;
-        // if image was replaced due to small motion we have to subtract the 
-        // last motion to get the increment
-        if (last_motion_small_)
-        {
-          camera_motion = Matrix::inv(reference_motion_) * motion;
-        }
-        else
-        {
-          // image was not replaced, report full motion from odometer
-          camera_motion = motion;
-        }
-        reference_motion_ = motion; // store last motion as reference
-
-        // calculate current feature flow
-        std::vector<Matcher::p_match> matches = visual_odometer_->getMatches();
-        std::vector<int> inlier_indices = visual_odometer_->getInlierIndices();
-        double feature_flow = computeFeatureFlow(matches);
-        last_motion_small_ = (feature_flow < motion_threshold_);
-        ROS_DEBUG_STREAM("Feature flow is " << feature_flow 
-            << ", marking last motion as " 
-            << (last_motion_small_ ? "small." : "normal."));
-
-        btMatrix3x3 rot_mat(
-          camera_motion.val[0][0], camera_motion.val[0][1], camera_motion.val[0][2],
-          camera_motion.val[1][0], camera_motion.val[1][1], camera_motion.val[1][2],
-          camera_motion.val[2][0], camera_motion.val[2][1], camera_motion.val[2][2]);
-        btVector3 t(camera_motion.val[0][3], camera_motion.val[1][3], camera_motion.val[2][3]);
-        tf::Transform delta_transform(rot_mat, t);
-
-        setPoseCovariance(STANDARD_POSE_COVARIANCE);
-        setTwistCovariance(STANDARD_TWIST_COVARIANCE);
-
-        integrateAndPublish(delta_transform, l_image_msg->header.stamp);
-
-        if (point_cloud_pub_.getNumSubscribers() > 0)
-        {
-          computeAndPublishPointCloud(l_info_msg, l_image_msg, r_info_msg, matches, inlier_indices);
-        }
-      }
-      else
-      {
-        setPoseCovariance(BAD_COVARIANCE);
-        setTwistCovariance(BAD_COVARIANCE);
-        tf::Transform delta_transform;
-        delta_transform.setIdentity();
-        integrateAndPublish(delta_transform, l_image_msg->header.stamp);
-
-        ROS_DEBUG("Call to VisualOdometryStereo::process() failed.");
-        ROS_WARN_THROTTLE(1.0, "Visual Odometer got lost!");
-        got_lost_ = true;
-      }
+      ROS_ERROR_STREAM("fovis stereo odometry failed: " << 
+          fovis::MotionEstimateStatusCodeStrings[status]);
     }
-  */
   }
 
 };
