@@ -1,0 +1,19 @@
+<package>
+  <description brief="fovis_ros">
+
+     fovis_ros
+
+  </description>
+  <author>Stephan Wirth</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/fovis_ros</url>
+  <depend package="roscpp"/>
+  <depend package="libfovis"/>
+  <depend package="image_geometry"/>
+  <depend package="cv_bridge"/>
+  <depend package="image_transport"/>
+
+</package>
+
+

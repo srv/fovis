@@ -1,0 +1,21 @@
+<package>
+  <description brief="libfovis">
+
+     libfovis
+
+  </description>
+  <author>Stephan Wirth</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/libfovis</url>
+
+  <rosdep name="eigen" />
+
+  <export>
+    <cpp cflags="`pkg-config --cflags eigen3` -I${prefix}/fovis/libfovis/build/include/ `rosboost-cfg --cflags`" 
+      lflags="-Wl,-rpath,${prefix}/fovis/libfovis/build/lib -L${prefix}/fovis/libfovis/build/lib -lfovis"/>
+  </export>
+
+</package>
+
+
