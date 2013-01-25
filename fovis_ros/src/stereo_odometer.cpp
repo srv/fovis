@@ -11,7 +11,10 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
-#include "stereo_processor.h"
+#include <opencv2/highgui/highgui.hpp> // TODO remove after debugging
+
+#include "stereo_processor.hpp"
+#include "visualization.hpp"
 
 namespace fovis_ros
 {
@@ -55,6 +58,8 @@ public:
 
     odom_pub_ = local_nh.advertise<nav_msgs::Odometry>("odometry", 1);
     pose_pub_ = local_nh.advertise<geometry_msgs::PoseStamped>("pose", 1);
+    //TODO remove after debugging
+    cv::namedWindow("debug", 0);
   }
 
 protected:
@@ -225,6 +230,15 @@ protected:
     // pass images to odometer
     stereo_depth_->setRightImage(r_image_data);
     visual_odometer_->processFrame(l_image_data, stereo_depth_.get());
+
+    // skip visualization on first run as no reference image is present
+    if (!first_run)
+    {
+      // TODO publish this as image message
+      cv::Mat canvas = visualization::paint(visual_odometer_.get());
+      cv::imshow("debug", canvas);
+      cv::waitKey(5);
+    }
 
     fovis::MotionEstimateStatusCode status = 
       visual_odometer_->getMotionEstimateStatus();
