@@ -184,7 +184,6 @@ protected:
           fovis::MotionEstimateStatusCodeStrings[status]);
     }
   }
-
 };
 
 } // end of namespace
