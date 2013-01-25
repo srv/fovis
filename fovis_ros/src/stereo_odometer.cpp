@@ -180,7 +180,6 @@ protected:
       tf::Quaternion pose_quaternion = tf::Quaternion(rotation.x(), rotation.y(), rotation.z(), rotation.w());
       tf::Vector3 pose_origin = tf::Vector3(translation.x(), translation.y(), translation.z());
       tf::Transform pose_transform = tf::Transform(pose_quaternion, pose_origin);
-      ROS_INFO_STREAM("Initialized fovis stereo odometry ");
 
       tf::Transform base_transform = base_to_sensor * pose_transform * base_to_sensor.inverse();
 
