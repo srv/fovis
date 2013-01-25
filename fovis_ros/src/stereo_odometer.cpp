@@ -8,6 +8,9 @@
 #include <fovis/visual_odometry.hpp>
 #include <fovis/stereo_depth.hpp>
 
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+
 #include "stereo_processor.h"
 
 namespace fovis_ros
@@ -24,6 +27,14 @@ private:
 
   ros::Time last_time_;
 
+  // tf related
+  std::string sensor_frame_id_;
+  std::string odom_frame_id_;
+  std::string base_link_frame_id_;
+  bool publish_tf_;
+  tf::TransformListener tf_listener_;
+  tf::TransformBroadcaster tf_broadcaster_;
+
   // publisher
   ros::Publisher odom_pub_;
   ros::Publisher pose_pub_;
@@ -34,8 +45,13 @@ public:
     StereoProcessor(transport), 
     visual_odometer_options_(fovis::VisualOdometry::getDefaultOptions())
   {
-    // TODO load parameters from node handle to visual_odometer_options_
+    // load parameters from node handle to visual_odometer_options_
     ros::NodeHandle local_nh("~");
+
+    local_nh.param("odom_frame_id", odom_frame_id_, std::string("/odom"));
+    local_nh.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
+    local_nh.param("sensor_frame_id", sensor_frame_id_, std::string("/camera"));
+    local_nh.param("publish_tf", publish_tf_, true);
 
     odom_pub_ = local_nh.advertise<nav_msgs::Odometry>("odometry", 1);
     pose_pub_ = local_nh.advertise<geometry_msgs::PoseStamped>("pose", 1);
@@ -87,6 +103,95 @@ protected:
     visual_odometer_.reset(new fovis::VisualOdometry(rectification, visual_odometer_options_));
     ROS_INFO_STREAM("Initialized fovis stereo odometry ");
   }
+
+  void mountAndPublish(const Eigen::Isometry3d& pose, const Eigen::MatrixXd& motion_cov,
+      const ros::Time& timestamp)
+  {
+
+    Eigen::Vector3d translation = pose.translation();
+    Eigen::Quaterniond rotation(pose.rotation());
+
+    nav_msgs::Odometry odom_msg;
+    odom_msg.header.stamp = timestamp;
+    odom_msg.header.frame_id = odom_frame_id_;
+    odom_msg.child_frame_id = base_link_frame_id_;
+    odom_msg.pose.pose.position.x = translation.x();
+    odom_msg.pose.pose.position.y = translation.y();
+    odom_msg.pose.pose.position.z = translation.z();
+    odom_msg.pose.pose.orientation.x = rotation.x();
+    odom_msg.pose.pose.orientation.y = rotation.y();
+    odom_msg.pose.pose.orientation.z = rotation.z();
+    odom_msg.pose.pose.orientation.w = rotation.w();
+
+    if (!last_time_.isZero())
+    {
+      float dt = (timestamp - last_time_).toSec();
+      if (dt > 0.0)
+      {
+        const Eigen::Isometry3d& last_motion = 
+          visual_odometer_->getMotionEstimate();
+        Eigen::Vector3d last_translation = last_motion.translation();
+        Eigen::AngleAxisd aa(last_motion.rotation());
+        odom_msg.twist.twist.linear.x = last_translation.x() / dt;
+        odom_msg.twist.twist.linear.y = last_translation.y() / dt;
+        odom_msg.twist.twist.linear.z = last_translation.z() / dt;
+        odom_msg.twist.twist.angular.x = aa.axis().x() * aa.angle() / dt;
+        odom_msg.twist.twist.angular.y = aa.axis().y() * aa.angle() / dt;
+        odom_msg.twist.twist.angular.z = aa.axis().z() * aa.angle() / dt;
+      }
+    }
+
+    for (int i=0;i<6;i++)
+      for (int j=0;j<6;j++)
+        odom_msg.twist.covariance[j*6+i] = motion_cov(i,j);
+    // TODO integrate covariance for pose covariance
+    
+    odom_pub_.publish(odom_msg);
+    geometry_msgs::PoseStamped pose_msg;
+    pose_msg.pose = odom_msg.pose.pose;
+    pose_msg.header = odom_msg.header;
+    pose_msg.header.frame_id = odom_msg.child_frame_id;
+    pose_pub_.publish(pose_msg);
+
+    // if user wants to publish the tf
+    if (publish_tf_)
+    {
+      // transform pose to base frame
+      tf::StampedTransform base_to_sensor;
+      std::string error_msg;
+      if (tf_listener_.canTransform(base_link_frame_id_, sensor_frame_id_, ros::Time(0), &error_msg))
+      {
+        tf_listener_.lookupTransform(
+            base_link_frame_id_,
+            sensor_frame_id_,
+            ros::Time(0), base_to_sensor);
+      }
+      else
+      {
+        ROS_WARN_THROTTLE(10.0, "The tf from '%s' to '%s' does not seem to be available, "
+                                "will assume it as identity!", 
+                                base_link_frame_id_.c_str(),
+                                sensor_frame_id_.c_str());
+        ROS_DEBUG("Transform error: %s", error_msg.c_str());
+        base_to_sensor.setIdentity();
+      }
+
+      // compute the transform
+      tf::Quaternion pose_quaternion = tf::Quaternion(rotation.x(), rotation.y(), rotation.z(), rotation.w());
+      tf::Vector3 pose_origin = tf::Vector3(translation.x(), translation.y(), translation.z());
+      tf::Transform pose_transform = tf::Transform(pose_quaternion, pose_origin);
+      ROS_INFO_STREAM("Initialized fovis stereo odometry ");
+
+      tf::Transform base_transform = base_to_sensor * pose_transform * base_to_sensor.inverse();
+
+      // publish transform
+      tf_broadcaster_.sendTransform(
+          tf::StampedTransform(base_transform, timestamp,
+          odom_frame_id_, base_link_frame_id_));
+    }
+    
+    last_time_ = timestamp;
+  }
  
   void imageCallback(
       const sensor_msgs::ImageConstPtr& l_image_msg,
@@ -127,56 +232,12 @@ protected:
 
     if (status == fovis::SUCCESS)
     {
-      // get pose and put it into messages
+      // get pose and motion
       const Eigen::Isometry3d& pose = visual_odometer_->getPose();
-      Eigen::Vector3d translation = pose.translation();
-      Eigen::Quaterniond rotation(pose.rotation());
+      const Eigen::MatrixXd& motion_cov = visual_odometer_->getMotionEstimateCov();
 
-      nav_msgs::Odometry odom_msg;
-      odom_msg.header.stamp = l_image_msg->header.stamp;
-      odom_msg.header.frame_id = "/odom";
-      odom_msg.child_frame_id = l_image_msg->header.frame_id;
-      odom_msg.pose.pose.position.x = translation.x();
-      odom_msg.pose.pose.position.y = translation.y();
-      odom_msg.pose.pose.position.z = translation.z();
-      odom_msg.pose.pose.orientation.x = rotation.x();
-      odom_msg.pose.pose.orientation.y = rotation.y();
-      odom_msg.pose.pose.orientation.z = rotation.z();
-      odom_msg.pose.pose.orientation.w = rotation.w();
-
-      if (!last_time_.isZero())
-      {
-        float dt = (l_image_msg->header.stamp - last_time_).toSec();
-        if (dt > 0.0)
-        {
-          const Eigen::Isometry3d& last_motion = 
-            visual_odometer_->getMotionEstimate();
-          Eigen::Vector3d last_translation = last_motion.translation();
-          Eigen::AngleAxisd aa(last_motion.rotation());
-          odom_msg.twist.twist.linear.x = last_translation.x() / dt;
-          odom_msg.twist.twist.linear.y = last_translation.y() / dt;
-          odom_msg.twist.twist.linear.z = last_translation.z() / dt;
-          odom_msg.twist.twist.angular.x = aa.axis().x() * aa.angle() / dt;
-          odom_msg.twist.twist.angular.y = aa.axis().y() * aa.angle() / dt;
-          odom_msg.twist.twist.angular.z = aa.axis().z() * aa.angle() / dt;
-        }
-      }
-
-      const Eigen::MatrixXd& motion_cov = 
-        visual_odometer_->getMotionEstimateCov();
-      for (int i=0;i<6;i++)
-        for (int j=0;j<6;j++)
-          odom_msg.twist.covariance[j*6+i] = motion_cov(i,j);
-      // TODO integrate covariance for pose covariance
-      
-      odom_pub_.publish(odom_msg);
-      geometry_msgs::PoseStamped pose_msg;
-      pose_msg.pose = odom_msg.pose.pose;
-      pose_msg.header = odom_msg.header;
-      pose_msg.header.frame_id = odom_msg.child_frame_id;
-      pose_pub_.publish(pose_msg);
-      
-      last_time_ = l_image_msg->header.stamp;
+      // Publish pose, odometry and tf
+      mountAndPublish(pose, motion_cov, l_image_msg->header.stamp);
     }
     else
     {
