@@ -1,11 +1,11 @@
 <package>
   <description brief="libfovis">
 
-     libfovis
+  Fovis is a visual odometry library that estimates the 3D motion of a camera using a source of depth information for each pixel. It's designed for sensors such as calibrated stereo cameras and RGB-D cameras like the Microsoft Kinect.
 
   </description>
-  <author>Stephan Wirth</author>
-  <license>BSD</license>
+  <author>A. S. Huang et. al., maintained by Stephan Wirth</author>
+  <license>GPL</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/libfovis</url>
 

@@ -1,11 +1,12 @@
 <package>
   <description brief="fovis_ros">
 
-     fovis_ros
+    fovis_ros is a ROS-wrapper for libfovis, a visual odometry library. It implements ROS-nodes that interact with the library via
+    ROS services and messages.
 
   </description>
-  <author>Stephan Wirth</author>
-  <license>BSD</license>
+  <author>Stephan Wirth, Pep Lluis Negre Carrasco</author>
+  <license>GPL</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/fovis_ros</url>
   <depend package="roscpp"/>

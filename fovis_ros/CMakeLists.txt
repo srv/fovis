@@ -22,7 +22,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #uncomment if you have defined services
 #rosbuild_gensrv()
 
-rosbuild_add_executable(stereo_odometer src/stereo_odometer.cpp)
+rosbuild_add_executable(stereo_odometer src/stereo_odometer.cpp src/visualization.cpp)
 rosbuild_link_boost(stereo_odometer signals)
 
 #common commands for building c++ executables and libraries
