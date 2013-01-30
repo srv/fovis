@@ -35,10 +35,14 @@ void _drawMatch(const fovis::FeatureMatch& match, cv::Mat& canvas)
   using namespace fovis;
   cv::Mat target_canvas(canvas.rowRange(0, canvas.rows/2));
   cv::Mat reference_canvas(canvas.rowRange(canvas.rows/2, canvas.rows));
-  const KeyPoint& ref_keypoint = match.ref_keypoint->kp;
   const KeyPoint& target_keypoint = match.target_keypoint->kp;
-  cv::Point2f ref_center(ref_keypoint.u, ref_keypoint.v);
-  cv::Point2f target_center(target_keypoint.u, target_keypoint.v);
+  const KeyPoint& ref_keypoint = match.ref_keypoint->kp;
+  int target_level = match.target_keypoint->pyramid_level;
+  int ref_level = match.ref_keypoint->pyramid_level;
+  cv::Point2f ref_center(
+      ref_keypoint.u*(ref_level+1), ref_keypoint.v*(ref_level+1));
+  cv::Point2f target_center(
+      target_keypoint.u*(target_level+1), target_keypoint.v*(target_level+1));
   cv::Scalar color(255, 0, 0);
   if (!match.inlier)
     color = cv::Scalar(0, 0, 255);
