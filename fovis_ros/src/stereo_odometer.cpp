@@ -5,11 +5,14 @@
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
 
+#include <fovis_ros/FovisInfo.h>
+
 #include <fovis/visual_odometry.hpp>
 #include <fovis/stereo_depth.hpp>
 
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
+
 
 #include "stereo_processor.hpp"
 #include "visualization.hpp"
@@ -42,6 +45,7 @@ private:
   // publisher
   ros::Publisher odom_pub_;
   ros::Publisher pose_pub_;
+  ros::Publisher info_pub_;
   image_transport::Publisher features_pub_;
   image_transport::ImageTransport it_;
 
@@ -61,6 +65,7 @@ public:
 
     odom_pub_ = nh_local_.advertise<nav_msgs::Odometry>("odometry", 1);
     pose_pub_ = nh_local_.advertise<geometry_msgs::PoseStamped>("pose", 1);
+    info_pub_ = nh_local_.advertise<FovisInfo>("info", 1);
     features_pub_ = it_.advertise("features", 1);
   }
 
@@ -201,6 +206,44 @@ protected:
       cv_image.encoding = sensor_msgs::image_encodings::BGR8;
       cv_image.image = visualization::paint(visual_odometer_.get());
       features_pub_.publish(cv_image.toImageMsg());
+    }
+
+    {
+      // create and publish fovis info msg
+      FovisInfo info_msg;
+      info_msg.header.stamp = l_image_msg->header.stamp;
+      info_msg.change_reference_frame = 
+        visual_odometer_->getChangeReferenceFrames();
+      info_msg.fast_threshold =
+        visual_odometer_->getFastThreshold();
+     const fovis::OdometryFrame* frame = 
+        visual_odometer_->getTargetFrame();
+      info_msg.num_total_detected_keypoints =
+       frame->getNumDetectedKeypoints();
+      info_msg.num_total_keypoints = frame->getNumKeypoints();
+      info_msg.num_detected_keypoints.resize(frame->getNumLevels());
+      info_msg.num_keypoints.resize(frame->getNumLevels());
+      for (int i = 0; i < frame->getNumLevels(); ++i)
+      {
+        info_msg.num_detected_keypoints[i] =
+          frame->getLevel(i)->getNumDetectedKeypoints();
+        info_msg.num_keypoints[i] =
+          frame->getLevel(i)->getNumKeypoints();
+      }
+      const fovis::MotionEstimator* estimator = 
+        visual_odometer_->getMotionEstimator();
+      info_msg.motion_estimate_status_code =
+        estimator->getMotionEstimateStatus();
+      info_msg.motion_estimate_status = 
+        fovis::MotionEstimateStatusCodeStrings[
+          info_msg.motion_estimate_status_code];
+      info_msg.num_matches = estimator->getNumMatches();
+      info_msg.num_inliers = estimator->getNumInliers();
+      info_msg.num_reprojection_failures =
+        estimator->getNumReprojectionFailures();
+      info_msg.motion_estimate_valid = 
+        estimator->isMotionEstimateValid();
+      info_pub_.publish(info_msg);
     }
 
     // create odometry and pose messages
