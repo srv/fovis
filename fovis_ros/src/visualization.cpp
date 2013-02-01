@@ -43,7 +43,7 @@ void _drawMatch(const fovis::FeatureMatch& match, cv::Mat& canvas)
       ref_keypoint.u*(ref_level+1), ref_keypoint.v*(ref_level+1));
   cv::Point2f target_center(
       target_keypoint.u*(target_level+1), target_keypoint.v*(target_level+1));
-  cv::Scalar color(255, 0, 0);
+  cv::Scalar color(0, 255, 0);
   if (!match.inlier)
     color = cv::Scalar(0, 0, 255);
   cv::circle(reference_canvas, ref_center, 
@@ -51,10 +51,24 @@ void _drawMatch(const fovis::FeatureMatch& match, cv::Mat& canvas)
   cv::circle(target_canvas, target_center, 
       (match.target_keypoint->pyramid_level+1)*10, color);
   cv::Point2f global_ref_center(ref_center.x, ref_center.y + canvas.rows/2);
-  if (match.inlier)
+  cv::line(canvas, target_center, global_ref_center, color);
+  // motion flow
+  // cv::line(canvas, target_center, ref_center, color);
+}
+
+void _drawKeypoint(const fovis::KeypointData& kp_data, cv::Mat& canvas)
+{
+  cv::Point2f center(kp_data.rect_base_uv.x(), kp_data.rect_base_uv.y());
+  cv::Scalar color;
+  if (kp_data.has_depth)
   {
-    cv::line(canvas, target_center, global_ref_center, cv::Scalar(0, 255, 0));
+    color = cv::Scalar(255, 0, 0);
   }
+  else
+  {
+    color = cv::Scalar(0, 0, 0);
+  }
+  cv::circle(canvas, center, (kp_data.pyramid_level+1)*10, color);
 }
 
 template<typename T>
@@ -69,6 +83,8 @@ std::vector<std::string> _createInfoStrings(const fovis::VisualOdometry* odometr
 {
   std::vector<std::string> infostrings;
   infostrings.push_back(std::string("Status: ") + fovis::MotionEstimateStatusCodeStrings[odometry->getMotionEstimateStatus()]);
+  infostrings.push_back(toStr(odometry->getTargetFrame()->getNumDetectedKeypoints()) + " keypoints");
+  infostrings.push_back(toStr(odometry->getTargetFrame()->getNumKeypoints()) + " filtered keypoints");
   infostrings.push_back(toStr(odometry->getMotionEstimator()->getNumMatches()) + " matches");
   infostrings.push_back(toStr(odometry->getMotionEstimator()->getNumInliers()) + " inliers");
   return infostrings;
@@ -101,6 +117,15 @@ cv::Mat fovis_ros::visualization::paint(const fovis::VisualOdometry* odometry)
   reference_image.copyTo(lower_canvas);
   cv::cvtColor(canvas, canvas, CV_GRAY2BGR);
 
+  for (int level = 0; level < reference_frame->getNumLevels(); ++level)
+  {
+    const PyramidLevel* pyramid_level = reference_frame->getLevel(level);
+    for (int i = 0; i < pyramid_level->getNumKeypoints(); ++i)
+    {
+      _drawKeypoint(*(pyramid_level->getKeypointData(i)), canvas);
+    }
+  }
+      
   const MotionEstimator* motion_estimator = odometry->getMotionEstimator(); 
   for (int i = 0; i < motion_estimator->getNumMatches(); ++i)
   {
