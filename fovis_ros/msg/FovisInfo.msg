@@ -35,3 +35,7 @@ bool motion_estimate_valid
 int32 num_matches
 int32 num_inliers
 int32 num_reprojection_failures
+
+# runtime of last iteration in seconds
+float64 runtime
+
