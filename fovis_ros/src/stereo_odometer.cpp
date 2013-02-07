@@ -57,7 +57,6 @@ public:
     nh_local_("~"),
     it_(nh_local_)
   {
-    // TODO load parameters from node handle to visual_odometer_options_
     nh_local_.param("odom_frame_id", odom_frame_id_, std::string("/odom"));
     nh_local_.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
     nh_local_.param("publish_tf", publish_tf_, true);
@@ -66,12 +65,12 @@ public:
         iter != visual_odometer_options_.end();
         ++iter)
     {
-      // to comply with ROS standard of parameter naming
       // NOTE: this only accepts parameters if given through
       // launch files with the argument "type" set to "string":
       //   e.g. <param name="fast_threshold_adaptive_gain" type="string" value="0.001"/>
       // passing parameters through the command line does not work
       std::string key = iter->first;
+      // to comply with ROS standard of parameter naming
       std::replace(key.begin(), key.end(), '-', '_');
       if (nh_local_.hasParam(key))
       {
