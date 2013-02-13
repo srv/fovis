@@ -5,11 +5,14 @@
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
 
+#include <fovis_ros/FovisInfo.h>
+
 #include <fovis/visual_odometry.hpp>
 #include <fovis/stereo_depth.hpp>
 
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
+
 
 #include "stereo_processor.hpp"
 #include "visualization.hpp"
@@ -42,6 +45,7 @@ private:
   // publisher
   ros::Publisher odom_pub_;
   ros::Publisher pose_pub_;
+  ros::Publisher info_pub_;
   image_transport::Publisher features_pub_;
   image_transport::ImageTransport it_;
 
@@ -53,14 +57,31 @@ public:
     nh_local_("~"),
     it_(nh_local_)
   {
-    // TODO load parameters from node handle to visual_odometer_options_
-
     nh_local_.param("odom_frame_id", odom_frame_id_, std::string("/odom"));
     nh_local_.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
     nh_local_.param("publish_tf", publish_tf_, true);
 
+    for (fovis::VisualOdometryOptions::iterator iter = visual_odometer_options_.begin();
+        iter != visual_odometer_options_.end();
+        ++iter)
+    {
+      // NOTE: this only accepts parameters if given through
+      // launch files with the argument "type" set to "string":
+      //   e.g. <param name="fast_threshold_adaptive_gain" type="string" value="0.001"/>
+      // passing parameters through the command line does not work
+      std::string key = iter->first;
+      // to comply with ROS standard of parameter naming
+      std::replace(key.begin(), key.end(), '-', '_');
+      if (nh_local_.hasParam(key))
+      {
+        std::string value;
+        nh_local_.getParam(key, value);
+        visual_odometer_options_[iter->first] = value;
+      }
+    }
     odom_pub_ = nh_local_.advertise<nav_msgs::Odometry>("odometry", 1);
     pose_pub_ = nh_local_.advertise<geometry_msgs::PoseStamped>("pose", 1);
+    info_pub_ = nh_local_.advertise<FovisInfo>("info", 1);
     features_pub_ = it_.advertise("features", 1);
   }
 
@@ -122,7 +143,17 @@ protected:
         l_info_msg->header.frame_id,
         initial_base_to_sensor_);
 
-    ROS_INFO_STREAM("Initialized fovis stereo odometry.");
+    std::stringstream info;
+    info << "Initialized fovis stereo odometry with the following options:\n";
+    for (fovis::VisualOdometryOptions::iterator iter = visual_odometer_options_.begin();
+        iter != visual_odometer_options_.end();
+        ++iter)
+    {
+      std::string key = iter->first;
+      std::replace(key.begin(), key.end(), '-', '_');
+      info << key << " = " << iter->second << std::endl;
+    }
+    ROS_INFO_STREAM(info.str());
   }
 
   void getBaseToSensorTransform(const ros::Time& stamp, 
@@ -164,6 +195,7 @@ protected:
       const sensor_msgs::CameraInfoConstPtr& l_info_msg,
       const sensor_msgs::CameraInfoConstPtr& r_info_msg)
   {
+    ros::Time start_time = ros::Time::now();
     bool first_run = false;
     // create odometer if not exists
     if (!visual_odometer_)
@@ -283,6 +315,44 @@ protected:
     }
     odom_pub_.publish(odom_msg);
     pose_pub_.publish(pose_msg);
+
+    // create and publish fovis info msg
+    FovisInfo info_msg;
+    info_msg.header.stamp = l_image_msg->header.stamp;
+    info_msg.change_reference_frame = 
+      visual_odometer_->getChangeReferenceFrames();
+    info_msg.fast_threshold =
+      visual_odometer_->getFastThreshold();
+    const fovis::OdometryFrame* frame = 
+      visual_odometer_->getTargetFrame();
+    info_msg.num_total_detected_keypoints =
+      frame->getNumDetectedKeypoints();
+    info_msg.num_total_keypoints = frame->getNumKeypoints();
+    info_msg.num_detected_keypoints.resize(frame->getNumLevels());
+    info_msg.num_keypoints.resize(frame->getNumLevels());
+    for (int i = 0; i < frame->getNumLevels(); ++i)
+    {
+      info_msg.num_detected_keypoints[i] =
+        frame->getLevel(i)->getNumDetectedKeypoints();
+      info_msg.num_keypoints[i] =
+        frame->getLevel(i)->getNumKeypoints();
+    }
+    const fovis::MotionEstimator* estimator = 
+      visual_odometer_->getMotionEstimator();
+    info_msg.motion_estimate_status_code =
+      estimator->getMotionEstimateStatus();
+    info_msg.motion_estimate_status = 
+      fovis::MotionEstimateStatusCodeStrings[
+        info_msg.motion_estimate_status_code];
+    info_msg.num_matches = estimator->getNumMatches();
+    info_msg.num_inliers = estimator->getNumInliers();
+    info_msg.num_reprojection_failures =
+      estimator->getNumReprojectionFailures();
+    info_msg.motion_estimate_valid = 
+      estimator->isMotionEstimateValid();
+    ros::Duration time_elapsed = ros::Time::now() - start_time;
+    info_msg.runtime = time_elapsed.toSec();
+    info_pub_.publish(info_msg);
   }
 };
 

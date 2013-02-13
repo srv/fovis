@@ -14,6 +14,9 @@
   <export>
     <cpp cflags="`pkg-config --cflags eigen3` -I${prefix}/fovis/libfovis/build/include/ `rosboost-cfg --cflags`" 
       lflags="-Wl,-rpath,${prefix}/fovis/libfovis/build/lib -L${prefix}/fovis/libfovis/build/lib -lfovis"/>
+
+    <doxymaker external="http://docs.fovis.googlecode.com/git/annotated.html"/>
+
   </export>
 
 </package>
