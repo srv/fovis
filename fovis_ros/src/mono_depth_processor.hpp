@@ -64,7 +64,7 @@ private:
   {
     int threshold = 3 * all_received_;
     if (image_received_ >= threshold || depth_received_ >= threshold || 
-        left_info_received_ >= threshold || depth_info_received_ >= threshold) {
+        image_info_received_ >= threshold || depth_info_received_ >= threshold) {
       ROS_WARN("[stereo_processor] Low number of synchronized image/depth/image_info/depth_info tuples received.\n"
                "Images received:            %d (topic '%s')\n"
                "Depth images received:      %d (topic '%s')\n"
@@ -96,11 +96,11 @@ protected:
     // Resolve topic names
     ros::NodeHandle nh;
     std::string camera_ns = nh.resolveName("camera");
-    std::string image_topic = ros::names::clean(camera_ns + "/rgb/" + nh.resolveName("image"));
-    std::string depth_topic = ros::names::clean(camera_ns + "/depth_registered/image_raw");
+    std::string image_topic = ros::names::clean(camera_ns + "/rgb/image_rect");
+    std::string depth_topic = ros::names::clean(camera_ns + "/depth_registered/image_rect");
 
     std::string image_info_topic = camera_ns + "/rgb/camera_info";
-    std::string depth_info_topic = camera_ns + "/depth/camera_info";
+    std::string depth_info_topic = camera_ns + "/depth_registered/camera_info";
 
     // Subscribe to four input topics.
     ROS_INFO("Subscribing to:\n\t* %s\n\t* %s\n\t* %s\n\t* %s", 
