@@ -22,8 +22,13 @@ rosbuild_genmsg()
 #uncomment if you have defined services
 #rosbuild_gensrv()
 
-rosbuild_add_executable(stereo_odometer src/stereo_odometer.cpp src/visualization.cpp)
+rosbuild_add_library(visualization src/visualization.cpp)
+rosbuild_add_executable(stereo_odometer src/stereo_odometer.cpp)
 rosbuild_link_boost(stereo_odometer signals)
+target_link_libraries(stereo_odometer visualization)
+rosbuild_add_executable(mono_depth_odometer src/mono_depth_odometer.cpp)
+rosbuild_link_boost(mono_depth_odometer signals)
+target_link_libraries(mono_depth_odometer visualization)
 
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
