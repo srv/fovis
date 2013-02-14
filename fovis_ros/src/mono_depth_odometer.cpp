@@ -86,15 +86,8 @@ protected:
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "mono_depth_odometer");
-  if (ros::names::remap("image").find("rect") == std::string::npos) {
-    ROS_WARN("mono_depth_odometer needs rectified input images. The used image "
-             "topic is '%s'. Are you sure the images are rectified?",
-             ros::names::remap("image").c_str());
-  }
-
   std::string transport = argc > 1 ? argv[1] : "raw";
   fovis_ros::MonoDepthOdometer odometer(transport);
-  
   ros::spin();
   return 0;
 }
