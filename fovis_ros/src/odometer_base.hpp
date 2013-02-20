@@ -79,7 +79,7 @@ protected:
       const sensor_msgs::ImageConstPtr& image_msg, 
       const sensor_msgs::CameraInfoConstPtr& info_msg)
   {
-    ros::Time start_time = ros::Time::now();
+    ros::WallTime start_time = ros::WallTime::now();
 
     bool first_run = false;
     if (visual_odometer_ == NULL)
@@ -228,7 +228,7 @@ protected:
       estimator->getNumReprojectionFailures();
     fovis_info_msg.motion_estimate_valid = 
       estimator->isMotionEstimateValid();
-    ros::Duration time_elapsed = ros::Time::now() - start_time;
+    ros::WallDuration time_elapsed = ros::WallTime::now() - start_time;
     fovis_info_msg.runtime = time_elapsed.toSec();
     info_pub_.publish(fovis_info_msg);
   }
