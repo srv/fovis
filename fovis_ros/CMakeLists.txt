@@ -1,38 +1,44 @@
-cmake_minimum_required(VERSION 2.4.6)
-include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
+cmake_minimum_required(VERSION 2.8.3)
+project(fovis_ros)
 
-# Set the build type.  Options are:
-#  Coverage       : w/ debug symbols, w/o optimization, w/ code-coverage
-#  Debug          : w/ debug symbols, w/o optimization
-#  Release        : w/o debug symbols, w/ optimization
-#  RelWithDebInfo : w/ debug symbols, w/ optimization
-#  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
-#set(ROS_BUILD_TYPE RelWithDebInfo)
+find_package(catkin REQUIRED COMPONENTS 
+	libfovis
+  roscpp 
+  sensor_msgs 
+  nav_msgs 
+  message_filters 
+  image_transport 
+  cv_bridge 
+  image_geometry 
+  tf 
+  pcl
+  pcl_ros 
+  std_srvs
+  message_generation
+  std_msgs)
+  #genmsg)
 
-rosbuild_init()
-rosbuild_add_boost_directories()
+find_package(OpenCV REQUIRED)
 
-#set the default path for built executables to the "bin" directory
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-#set the default path for built libraries to the "lib" directory
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
+find_package(Boost REQUIRED COMPONENTS signals thread)
+include_directories(${Boost_INCLUDE_DIRS})
 
-#uncomment if you have defined messages
-rosbuild_genmsg()
-#uncomment if you have defined services
-#rosbuild_gensrv()
+add_message_files(DIRECTORY msg FILES FovisInfo.msg)
 
-rosbuild_add_library(visualization src/visualization.cpp)
-rosbuild_add_executable(stereo_odometer src/stereo_odometer.cpp)
-rosbuild_link_boost(stereo_odometer signals)
-target_link_libraries(stereo_odometer visualization)
-rosbuild_add_executable(mono_depth_odometer src/mono_depth_odometer.cpp)
-rosbuild_link_boost(mono_depth_odometer signals)
-target_link_libraries(mono_depth_odometer visualization)
+generate_messages(DEPENDENCIES std_msgs)
 
-#common commands for building c++ executables and libraries
-#rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
-#target_link_libraries(${PROJECT_NAME} another_library)
-#rosbuild_add_boost_directories()
-#rosbuild_link_boost(${PROJECT_NAME} thread)
-#target_link_libraries(example ${PROJECT_NAME})
+catkin_package()
+
+add_definitions("-msse3")
+
+include_directories(src ${libfovis_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
+
+add_library(visualization src/visualization.cpp)
+
+add_executable(fovis_stereo_odometer src/stereo_odometer.cpp)
+
+add_executable(fovis_mono_depth_odometer src/mono_depth_odometer.cpp)
+
+target_link_libraries(fovis_stereo_odometer ${catkin_LIBRARIES} visualization)
+target_link_libraries(fovis_mono_depth_odometer ${catkin_LIBRARIES} visualization)
+

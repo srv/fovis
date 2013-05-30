@@ -7,8 +7,8 @@
 
 #include <fovis_ros/FovisInfo.h>
 
-#include <fovis/visual_odometry.hpp>
-#include <fovis/stereo_depth.hpp>
+#include <visual_odometry.hpp>
+#include <stereo_depth.hpp>
 
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>

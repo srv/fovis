@@ -5,7 +5,7 @@
 
 #include <fovis_ros/FovisInfo.h>
 
-#include <fovis/depth_image.hpp>
+#include <depth_image.hpp>
 
 #include "mono_depth_processor.hpp"
 #include "odometer_base.hpp"
