@@ -96,11 +96,11 @@ protected:
     // Resolve topic names
     ros::NodeHandle nh;
     std::string camera_ns = nh.resolveName("camera");
-    std::string image_topic = ros::names::clean(camera_ns + "/rgb/image_rect");
+    std::string image_topic = ros::names::clean(camera_ns + "/left/image_rect_color");
     std::string depth_topic = ros::names::clean(camera_ns + "/depth_registered/image_rect");
 
-    std::string image_info_topic = camera_ns + "/rgb/camera_info";
-    std::string depth_info_topic = camera_ns + "/depth_registered/camera_info";
+    std::string image_info_topic = camera_ns + "/left/camera_info";
+    std::string depth_info_topic = camera_ns + "/left/camera_info";
 
     // Subscribe to four input topics.
     ROS_INFO("Subscribing to:\n\t* %s\n\t* %s\n\t* %s\n\t* %s", 
