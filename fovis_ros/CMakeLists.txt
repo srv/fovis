@@ -39,6 +39,6 @@ add_executable(fovis_stereo_odometer src/stereo_odometer.cpp)
 
 add_executable(fovis_mono_depth_odometer src/mono_depth_odometer.cpp)
 
-target_link_libraries(fovis_stereo_odometer ${catkin_LIBRARIES} visualization ${PCL_LIBRARIES})
-target_link_libraries(fovis_mono_depth_odometer ${catkin_LIBRARIES} visualization ${PCL_LIBRARIES})
+target_link_libraries(fovis_stereo_odometer ${catkin_LIBRARIES} ${PCL_LIBRARIES} visualization)
+target_link_libraries(fovis_mono_depth_odometer ${catkin_LIBRARIES} ${PCL_LIBRARIES} visualization)
 
