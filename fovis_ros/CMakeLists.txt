@@ -11,7 +11,6 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge 
   image_geometry 
   tf 
-  pcl
   pcl_ros 
   std_srvs
   message_generation
@@ -19,9 +18,10 @@ find_package(catkin REQUIRED COMPONENTS
   #genmsg)
 
 find_package(OpenCV REQUIRED)
+find_package(PCL REQUIRED)
 
 find_package(Boost REQUIRED COMPONENTS signals thread)
-include_directories(${Boost_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS} ${PCL_ICNLUDE_DIRS})
 
 add_message_files(DIRECTORY msg FILES FovisInfo.msg)
 
@@ -39,6 +39,6 @@ add_executable(fovis_stereo_odometer src/stereo_odometer.cpp)
 
 add_executable(fovis_mono_depth_odometer src/mono_depth_odometer.cpp)
 
-target_link_libraries(fovis_stereo_odometer ${catkin_LIBRARIES} visualization)
-target_link_libraries(fovis_mono_depth_odometer ${catkin_LIBRARIES} visualization)
+target_link_libraries(fovis_stereo_odometer ${catkin_LIBRARIES} ${PCL_LIBRARIES} visualization)
+target_link_libraries(fovis_mono_depth_odometer ${catkin_LIBRARIES} ${PCL_LIBRARIES} visualization)
 
