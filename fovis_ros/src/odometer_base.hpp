@@ -114,13 +114,12 @@ protected:
     }
 
     // create odometry and pose messages
-    nav_msgs::Odometry odom_msg;
-    odom_msg.header.stamp = image_msg->header.stamp;
-    odom_msg.header.frame_id = odom_frame_id_;
-    odom_msg.child_frame_id = base_link_frame_id_;
-    geometry_msgs::PoseStamped pose_msg;
-    pose_msg.header.stamp = image_msg->header.stamp;
-    pose_msg.header.frame_id = base_link_frame_id_;
+    odom_msg_.header.stamp = image_msg->header.stamp;
+    odom_msg_.header.frame_id = odom_frame_id_;
+    odom_msg_.child_frame_id = base_link_frame_id_;
+    
+    pose_msg_.header.stamp = image_msg->header.stamp;
+    pose_msg_.header.frame_id = base_link_frame_id_;
 
     // on success, start fill message and tf
     fovis::MotionEstimateStatusCode status = 
@@ -149,8 +148,8 @@ protected:
       }
 
       // fill odometry and pose msg
-      tf::poseTFToMsg(base_transform, odom_msg.pose.pose);
-      pose_msg.pose = odom_msg.pose.pose;
+      tf::poseTFToMsg(base_transform, odom_msg_.pose.pose);
+      pose_msg_.pose = odom_msg_.pose.pose;
 
       // can we calculate velocities?
       double dt = last_time_.isZero() ? 
@@ -165,34 +164,35 @@ protected:
         tf::Transform delta_base_transform = 
           current_base_to_sensor * sensor_motion * current_base_to_sensor.inverse();
         // calculate twist from delta transform
-        odom_msg.twist.twist.linear.x = delta_base_transform.getOrigin().getX() / dt;
-        odom_msg.twist.twist.linear.y = delta_base_transform.getOrigin().getY() / dt;
-        odom_msg.twist.twist.linear.z = delta_base_transform.getOrigin().getZ() / dt;
+        odom_msg_.twist.twist.linear.x = delta_base_transform.getOrigin().getX() / dt;
+        odom_msg_.twist.twist.linear.y = delta_base_transform.getOrigin().getY() / dt;
+        odom_msg_.twist.twist.linear.z = delta_base_transform.getOrigin().getZ() / dt;
         tf::Quaternion delta_rot = delta_base_transform.getRotation();
         double angle = delta_rot.getAngle();
         tf::Vector3 axis = delta_rot.getAxis();
         tf::Vector3 angular_twist = axis * angle / dt;
-        odom_msg.twist.twist.angular.x = angular_twist.x();
-        odom_msg.twist.twist.angular.y = angular_twist.y();
-        odom_msg.twist.twist.angular.z = angular_twist.z();
+        odom_msg_.twist.twist.angular.x = angular_twist.x();
+        odom_msg_.twist.twist.angular.y = angular_twist.y();
+        odom_msg_.twist.twist.angular.z = angular_twist.z();
 
         // add covariance
         const Eigen::MatrixXd& motion_cov = visual_odometer_->getMotionEstimateCov();
         for (int i=0;i<6;i++)
           for (int j=0;j<6;j++)
-            odom_msg.twist.covariance[j*6+i] = motion_cov(i,j);
+            odom_msg_.twist.covariance[j*6+i] = motion_cov(i,j);
       }
       // TODO integrate covariance for pose covariance
       last_time_ = image_msg->header.stamp;
     }
     else
     {
-      ROS_ERROR_STREAM("fovis odometry failed: " << 
+      // Previous messages with the current timestamp will be published
+      ROS_WARN_STREAM("fovis odometry status: " << 
           fovis::MotionEstimateStatusCodeStrings[status]);
       last_time_ = ros::Time(0);
     }
-    odom_pub_.publish(odom_msg);
-    pose_pub_.publish(pose_msg);
+    odom_pub_.publish(odom_msg_);
+    pose_pub_.publish(pose_msg_);
 
     // create and publish fovis info msg
     FovisInfo fovis_info_msg;
@@ -352,6 +352,10 @@ private:
   tf::StampedTransform initial_base_to_sensor_;
   tf::TransformListener tf_listener_;
   tf::TransformBroadcaster tf_broadcaster_;
+  
+  // Messages
+  nav_msgs::Odometry odom_msg_;
+  geometry_msgs::PoseStamped pose_msg_;
 
   ros::NodeHandle nh_local_;
 
