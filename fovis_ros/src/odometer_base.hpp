@@ -128,6 +128,12 @@ protected:
     {
       // get pose and motion from odometer
       const Eigen::Isometry3d& pose = visual_odometer_->getPose();
+
+      // Check for NAN
+      Eigen::Vector3d xyz = pose.translation();
+      if (!std::isfinite(xyz(0)) || !std::isfinite(xyz(1)) || !std::isfinite(xyz(2)))
+        ROS_ERROR("libfovis returns nan values!");
+
       tf::Transform sensor_pose;
       eigenToTF(pose, sensor_pose);
       // calculate transform of odom to base based on base to sensor 
