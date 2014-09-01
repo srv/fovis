@@ -6,6 +6,7 @@
 #include <fovis_ros/FovisInfo.h>
 
 #include <stereo_depth.hpp>
+#include <stereo_calibration.hpp>
 
 #include "stereo_processor.hpp"
 #include "odometer_base.hpp"
@@ -23,7 +24,7 @@ private:
 
 public:
 
-  StereoOdometer(const std::string& transport) : 
+  StereoOdometer(const std::string& transport) :
     StereoProcessor(transport),
     stereo_depth_(NULL)
   {
@@ -44,7 +45,7 @@ protected:
     // to fill remaining parameters
     image_geometry::StereoCameraModel model;
     model.fromCameraInfo(*l_info_msg, *r_info_msg);
-    
+
     // initialize left camera parameters
     fovis::CameraIntrinsicsParameters left_parameters;
     rosToFovis(model.left(), left_parameters);
@@ -69,7 +70,7 @@ protected:
     stereo_parameters.right_to_left_translation[1] = 0.0;
     stereo_parameters.right_to_left_translation[2] = 0.0;
 
-    fovis::StereoCalibration* stereo_calibration = 
+    fovis::StereoCalibration* stereo_calibration =
       new fovis::StereoCalibration(stereo_parameters);
 
     return new fovis::StereoDepth(stereo_calibration, getOptions());
@@ -124,7 +125,7 @@ int main(int argc, char **argv)
 
   std::string transport = argc > 1 ? argv[1] : "raw";
   fovis_ros::StereoOdometer odometer(transport);
-  
+
   ros::spin();
   return 0;
 }

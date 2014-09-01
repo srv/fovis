@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(fovis_ros)
 
-find_package(catkin REQUIRED COMPONENTS 
+find_package(catkin REQUIRED COMPONENTS
 	libfovis
-	roscpp 
-	sensor_msgs 
-	nav_msgs 
-	message_filters 
-	image_transport 
-	cv_bridge 
-	image_geometry 
-	tf 
-	pcl_ros 
+	roscpp
+	sensor_msgs
+	nav_msgs
+	message_filters
+	image_transport
+	cv_bridge
+	image_geometry
+	tf
+	pcl_ros
 	std_srvs
 	message_generation
 	std_msgs)
