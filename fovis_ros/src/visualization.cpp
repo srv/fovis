@@ -1,6 +1,6 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <visual_odometry.hpp>
+#include <libfovis/visual_odometry.hpp>
 #include <iostream>
 
 #include "visualization.hpp"
