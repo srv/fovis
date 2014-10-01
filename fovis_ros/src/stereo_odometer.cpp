@@ -5,7 +5,7 @@
 
 #include <fovis_ros/FovisInfo.h>
 
-#include <stereo_depth.hpp>
+#include <libfovis/stereo_depth.hpp>
 
 #include "stereo_processor.hpp"
 #include "odometer_base.hpp"
