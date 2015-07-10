@@ -180,6 +180,12 @@ protected:
         for (int i=0;i<6;i++)
           for (int j=0;j<6;j++)
             odom_msg_.twist.covariance[j*6+i] = motion_cov(i,j);
+
+        for (int ii=0;ii<6;ii++)
+          for (int jj=0;jj<6;jj++){
+            odom_msg_.pose.covariance[jj*6+ii] = ii==jj ? 1e-7 : 0.0;
+          }
+
       }
       // TODO integrate covariance for pose covariance
       last_time_ = image_msg->header.stamp;
