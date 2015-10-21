@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(fovis_ros)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
+
 find_package(catkin REQUIRED COMPONENTS
 	libfovis
 	roscpp
@@ -28,7 +30,9 @@ generate_messages(DEPENDENCIES std_msgs)
 
 catkin_package(CATKIN_DEPENDS message_runtime)
 
-add_definitions("-msse3")
+IF(SSSE3_FOUND)
+	add_definitions("-msse3")
+ENDIF(SSSE3_FOUND)
 
 include_directories(src ${libfovis_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS})
 
@@ -42,6 +46,7 @@ add_dependencies(fovis_mono_depth_odometer fovis_ros_generate_messages_cpp)
 add_dependencies(fovis_stereo_odometer fovis_ros_generate_messages_cpp)
 add_dependencies(visualization fovis_ros_generate_messages_cpp)
 
+target_link_libraries(visualization ${catkin_LIBRARIES})
 target_link_libraries(fovis_stereo_odometer ${catkin_LIBRARIES} ${PCL_LIBRARIES} visualization)
 target_link_libraries(fovis_mono_depth_odometer ${catkin_LIBRARIES} ${PCL_LIBRARIES} visualization)
 
